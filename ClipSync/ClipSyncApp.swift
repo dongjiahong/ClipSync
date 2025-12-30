@@ -18,7 +18,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var popover: NSPopover!
     private var serverManager: ServerManager!
     private var clipboardStore: ClipboardStore!
-    private var eventMonitor: Any?
+    private var hotKeyRef: EventHotKeyRef?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 初始化剪贴板存储
@@ -47,8 +47,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             )
         )
         
-        // 注册全局快捷键 (⌘ + Shift + V)
-        registerHotKey()
+        // 注册全局快捷键 (Option + 空格)
+        registerCarbonHotKey()
     }
     
     @objc func togglePopover() {
@@ -64,34 +64,66 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     func applicationWillTerminate(_ notification: Notification) {
         serverManager.stop()
-        if let monitor = eventMonitor {
-            NSEvent.removeMonitor(monitor)
+        unregisterCarbonHotKey()
+    }
+    
+    // MARK: - Carbon 全局快捷键
+    private func registerCarbonHotKey() {
+        // Option + 空格
+        // 空格键的虚拟键码是 49
+        let modifiers: UInt32 = UInt32(optionKey)
+        let keyCode: UInt32 = 49 // 空格键
+        
+        var hotKeyID = EventHotKeyID()
+        hotKeyID.signature = OSType(0x434C5053) // "CLPS" 的 ASCII
+        hotKeyID.id = 1
+        
+        var eventType = EventTypeSpec()
+        eventType.eventClass = OSType(kEventClassKeyboard)
+        eventType.eventKind = OSType(kEventHotKeyPressed)
+        
+        // 安装事件处理器
+        let status = InstallEventHandler(
+            GetApplicationEventTarget(),
+            { (_, event, userData) -> OSStatus in
+                guard let userData = userData else { return OSStatus(eventNotHandledErr) }
+                let appDelegate = Unmanaged<AppDelegate>.fromOpaque(userData).takeUnretainedValue()
+                DispatchQueue.main.async {
+                    appDelegate.togglePopover()
+                }
+                return noErr
+            },
+            1,
+            &eventType,
+            Unmanaged.passUnretained(self).toOpaque(),
+            nil
+        )
+        
+        if status != noErr {
+            print("安装事件处理器失败: \(status)")
+            return
+        }
+        
+        // 注册热键
+        let registerStatus = RegisterEventHotKey(
+            keyCode,
+            modifiers,
+            hotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &hotKeyRef
+        )
+        
+        if registerStatus != noErr {
+            print("注册热键失败: \(registerStatus)")
+        } else {
+            print("全局快捷键已注册: Option+空格")
         }
     }
     
-    // MARK: - 全局快捷键
-    private func registerHotKey() {
-        // 使用 NSEvent 监听全局快捷键 ⌘ + Shift + B
-        eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            // 检查 ⌘ + Shift + B
-            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            if flags == [.command, .shift] && event.keyCode == 11 { // 11 是 B 键
-                DispatchQueue.main.async {
-                    self?.togglePopover()
-                }
-            }
-        }
-        
-        // 同时监听本地事件（当应用激活时）
-        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            if flags == [.command, .shift] && event.keyCode == 11 {
-                DispatchQueue.main.async {
-                    self?.togglePopover()
-                }
-                return nil
-            }
-            return event
+    private func unregisterCarbonHotKey() {
+        if let hotKeyRef = hotKeyRef {
+            UnregisterEventHotKey(hotKeyRef)
         }
     }
 }

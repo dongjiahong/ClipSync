@@ -49,7 +49,7 @@ struct MenuBarView: View {
                 Spacer()
                 
                 // 快捷键提示
-                Text("⌘⇧B")
+                Text("⌥␣")
                     .font(.caption)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
