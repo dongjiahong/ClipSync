@@ -4,8 +4,7 @@
 
 ## 截图
 
-![image](./screenshots/macos.png)
-![image](./screenshots/web.png)
+![image](./screenshots/image.png)
 
 ## 功能特点
 
