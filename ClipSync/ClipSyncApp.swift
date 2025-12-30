@@ -62,6 +62,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
+    /// 将最新的剪贴板内容复制到系统剪贴板
+    func copyLatestToClipboard() {
+        guard let latestItem = clipboardStore.items.first else { return }
+        
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(latestItem.content, forType: .string)
+        print("已自动复制最新内容: \(latestItem.displayContent)")
+    }
+    
     func applicationWillTerminate(_ notification: Notification) {
         serverManager.stop()
         unregisterCarbonHotKey()
@@ -89,6 +99,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let userData = userData else { return OSStatus(eventNotHandledErr) }
                 let appDelegate = Unmanaged<AppDelegate>.fromOpaque(userData).takeUnretainedValue()
                 DispatchQueue.main.async {
+                    // 自动复制最新内容到系统剪贴板
+                    appDelegate.copyLatestToClipboard()
                     appDelegate.togglePopover()
                 }
                 return noErr
